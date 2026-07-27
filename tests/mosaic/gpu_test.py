@@ -7269,7 +7269,7 @@ class MosaicGpuDialectTest(TestCase, jtu.JaxTestCase):
         cluster=(1, 1, 1),
         block=(128, 1, 1),
         in_shape=(),
-        out_shape=jax.ShapeDtypeStruct((1,), jnp.int64),
+        out_shape=jax.ShapeDtypeStruct((1,), jnp.int32),
         smem_scratch_shape=(),
         thread_semantics=mgpu.LoweringSemantics.Warpgroup,
     )

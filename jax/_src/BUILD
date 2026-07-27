@@ -865,6 +865,7 @@ pytype_strict_library(
         ":ad",
         ":api",
         ":batching",
+        ":config",
         ":core",
         ":effects",
         ":frozen_dict",
