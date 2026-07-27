@@ -16,6 +16,12 @@ When releasing, please add the new-release-boilerplate to docs/pallas/CHANGELOG.
 
 ## Unreleased
 
+* Breaking changes
+  * JAX does not support anymore deserialization of Exported modules from
+  before January 15th, 2026 because they are beyong the backwards compatibility
+  window. On that date we added support to serialize shardings as NamedSharding,
+  and now that is the only sharding serialization that is supported. 
+
 ## JAX 0.11.0 (July 16, 2026)
 
 * New features

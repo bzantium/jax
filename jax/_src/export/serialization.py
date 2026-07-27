@@ -37,7 +37,6 @@ from jax._src import effects
 from jax._src.export import serialization_generated as ser_flatbuf
 from jax._src.export import _export
 from jax._src.export import shape_poly
-from jax._src.lib import xla_client
 from jax._src import mesh
 from jax._src import named_sharding
 from jax._src import partition_spec
@@ -61,6 +60,7 @@ SerT = TypeVar("SerT")
 # Version 5, November 23rd, 2025, adds serialization for aval memory_space,
 #   upgrade num_devices to a 32 bit value.
 #   This version is backwards compatible with Version 2 to 4.
+#   This version is beyond the 6 months compat window and not supported anymore.
 # Version 6, January 15th, 2026, adds serialization for sharding as
 #   NamedSharding, including the abstract mesh, and the partition spec.
 #   Contains also HloSharding serialization, for forward compatibility.
@@ -339,8 +339,9 @@ def _deserialize_exported(exp: ser_flatbuf.Exported) -> _export.Exported:
 
   # has_named_sharding will be True for all exports created after 1/15/2026
   # TODO(b/489569164): remove has_named_sharding 6 months after 1/15/2026
-  has_named_shardings = not any(isinstance(s, _export.HloSharding)
-                                for s in itertools.chain(in_shardings, out_shardings))
+  # has_named_shardings = not any(isinstance(s, _export.HloSharding)
+  #                               for s in itertools.chain(in_shardings, out_shardings))
+  has_named_shardings = True
   if has_named_shardings:
     def get_aval_by_idx(idx, sharding: _export.NamedSharding | None):
       base_aval = uniques.unique_avals[idx]
@@ -853,7 +854,7 @@ def _serialize_sharding(
 
 
 def _deserialize_sharding(s: ser_flatbuf.Sharding, *,
-                          uniques: _SerializedUniques) -> _export.HloSharding | named_sharding.NamedSharding | None:
+                          uniques: _SerializedUniques) -> named_sharding.NamedSharding | None:
   if (named_sharding_off := s.NamedSharding()) is not None:
     # After 1/15/26 all exports will have named shardings (or None)
     # TODO(necula): We must keep reading the NamedSharding for 6 months after 4/4/26
@@ -861,9 +862,10 @@ def _deserialize_sharding(s: ser_flatbuf.Sharding, *,
 
   # TODO(b/489569164): We must keep reading the HloSharding for 6 months after 1/15/2026.
   if not s.HloShardingProtoIsNone():
-    proto = xla_client.OpSharding()
-    proto.ParseFromString(s.HloShardingProtoAsNumpy().tobytes())
-    return xla_client.HloSharding.from_proto(proto)
+    raise NotImplementedError(
+        "Deserializing Exported with HloShardingProto is not supported anymore. "
+        "This must be an Exported created before 1/15/2026, which is beying "
+        "the 6 months backwards compatibility window")
 
   return None  # Unspecified sharding
 

@@ -279,6 +279,7 @@ class Exported:
        Shard(device=CpuDevice(id=0), index=(slice(7, 8, None),), replica_id=0, data=[14])]
 
     """
+    assert self._has_named_shardings
     return tuple(
       _get_named_sharding(self._has_named_shardings, named_sharding,
                           hlo_sharding, aval, mesh)
@@ -292,6 +293,7 @@ class Exported:
 
     See documentation for in_shardings_jax.
     """
+    assert self._has_named_shardings
     return tuple(
       _get_named_sharding(self._has_named_shardings, named_sharding,
                           hlo_sharding, aval, mesh)
@@ -1347,6 +1349,7 @@ def _get_named_sharding(
     aval: core.ShapedArray,
     new_mesh: mesh_lib.Mesh | mesh_lib.AbstractMesh | None
     ) -> sharding_impls.NamedSharding | None:
+  assert has_named_shardings
   if has_named_shardings:
     if named_sharding is None:  # Unspecified
       return None
@@ -1388,6 +1391,7 @@ def _get_vjp_fun(
     flat_primal_fun: bool = False,
     mesh: mesh_lib.AbstractMesh | None = None,
 ) -> tuple[Callable, Sequence[core.AbstractValue]]:
+  assert has_named_shardings
   # Since jax.vjp does not handle kwargs, it is easier to do all the work
   # here with flattened functions.
   # apply_jit=False is only used for backwards compatibility with the graph
@@ -1559,7 +1563,7 @@ def _call_exported_abstract_eval(
   shape_constraints.check_statically(synthetic_eval)
   exported_dim_values = [synthetic_eval.evaluate(solution[var])
                          for var in exported_dim_vars]
-
+  assert exported._has_named_shardings
   def make_aval(out_aval_idx: int):
     out_aval = exported.out_avals[out_aval_idx]
     if exported._has_named_shardings:
@@ -1665,6 +1669,7 @@ def _call_exported_lowering(ctx: mlir.LoweringRuleContext, *args,
   exported_in_avals = [core.physical_aval(a)
                        if dtypes.issubdtype(a.dtype, dtypes.extended) else a
                        for a in exported.in_avals]
+  assert exported._has_named_shardings
   if exported._has_named_shardings:
     args = tuple(
         wrap_with_sharding(
