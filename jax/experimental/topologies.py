@@ -34,8 +34,13 @@ def get_attached_topology(platform=None) -> TopologyDescription:
 
 
 def get_topology_desc(
-    topology_name: str = "", platform: str | None = None, **kwargs
+    topology_name: str = "",
+    platform: str | None = None,
+    serialized_topology: bytes | None = None,
+    **kwargs,
 ) -> TopologyDescription:
+  if serialized_topology is not None:
+    kwargs["serialized_topology"] = serialized_topology
   if platform == "tpu" or platform is None:
     return TopologyDescription(
         xb.make_pjrt_tpu_topology(

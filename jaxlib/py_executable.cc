@@ -63,6 +63,7 @@ limitations under the License.
 #include "xla/python/ifrt/device.h"
 #include "xla/python/ifrt/device_list.h"
 #include "xla/python/ifrt/executable.h"
+#include "xla/python/ifrt/serdes.h"
 #include "xla/python/ifrt/sharding.h"
 #include "xla/python/ifrt/user_context.h"
 #include "xla/python/ifrt/user_context_status_util.h"
@@ -584,6 +585,30 @@ void PyLoadedExecutable::Register(nb::module_& m) {
              std::string serialized =
                  xla::ValueOrThrow(exec.ifrt_loaded_executable()->Serialize());
              return nb::bytes(serialized.data(), serialized.size());
+           })
+      .def("get_executable_version",
+           [](const PyLoadedExecutable& exec) -> nb::bytes {
+             // Standard PJRT backends (e.g., GPU, TPU) currently do not track
+             // XLA executable versions and may return an error or null. We
+             // gracefully degrade to an empty string (b"") here. Downstream
+             // runtimes (like JSV) are explicitly designed to tolerate
+             // empty/unimplemented versions by skipping strict compatibility
+             // checks.
+             // TODO(b/477624817): Remove this graceful degradation once PJRT
+             // fully supports ABI version tracking.
+             auto version = exec.ifrt_loaded_executable()->executable_version();
+             if (!version.ok() || !*version) {
+               return nb::bytes("", 0);
+             }
+             auto serialized = xla::ifrt::Serialize(**version, nullptr);
+             if (!serialized.ok()) {
+               return nb::bytes("", 0);
+             }
+             std::string serialized_str;
+             if (!serialized->SerializeToString(&serialized_str)) {
+               return nb::bytes("", 0);
+             }
+             return nb::bytes(serialized_str.data(), serialized_str.size());
            })
       .def("size_of_generated_code_in_bytes",
            &PyLoadedExecutable::SizeOfGeneratedCodeInBytes)
