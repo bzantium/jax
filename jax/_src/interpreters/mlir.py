@@ -25,10 +25,12 @@ import io
 import itertools
 import operator
 import re
+import threading
 import types
 import typing
 from typing import Any, NamedTuple, Protocol, Union, cast as type_cast
 import warnings
+import weakref
 
 from jax._src import ad_util
 from jax._src import api_util
@@ -620,8 +622,35 @@ class JaxIrContext(ir.Context):
     # context. We want to ensure that only the dialects we need are loaded.
     super(ir.Context, self).__init__(*args, **kwargs)
 
-def make_ir_context() -> ir.Context:
-  """Creates an MLIR context suitable for JAX IR."""
+
+_thread_contexts_lock = threading.Lock()
+_all_thread_contexts: weakref.WeakSet[_ThreadLocalContext] = weakref.WeakSet()
+
+
+class _ThreadLocalContext(threading.local):
+  def __init__(self):
+    super().__init__()
+    self.context: JaxIrContext | None = None
+    with _thread_contexts_lock:
+      _all_thread_contexts.add(self)
+
+  def cache_clear(self) -> None:
+    clear_ir_contexts()
+
+
+_thread_local_context = _ThreadLocalContext()
+
+
+def clear_ir_contexts() -> None:
+  with _thread_contexts_lock:
+    for t_ctx in list(_all_thread_contexts):
+      t_ctx.context = None
+
+
+util.register_cache(_thread_local_context, "IR contexts")
+
+
+def _create_ir_context() -> JaxIrContext:
   context = JaxIrContext()
   context.append_dialect_registry(upstream_dialects)
   context.load_all_available_dialects()
@@ -640,6 +669,14 @@ def make_ir_context() -> ir.Context:
   # TODO(phawkins): clean up users who add their own dialects to JAX's contexts
   # and enable this.
   return context
+
+
+def make_ir_context() -> ir.Context:
+  """Creates an MLIR context suitable for JAX IR."""
+  ctx = _thread_local_context.context
+  if ctx is None:
+    ctx = _thread_local_context.context = _create_ir_context()
+  return ctx
 
 
 AxisContext = Union[sharding_impls.SPMDAxisContext,
@@ -837,7 +874,10 @@ class ModuleContext:
       pallas_collective_id_mapping: None | CollectiveIdMapping = None):
 
     self.context = context or make_ir_context()
-    self.module = module or ir.Module.create(loc=ir.Location.unknown(self.context))
+    if module is None:
+      with ir.Location.unknown(self.context):
+        module = ir.Module.create()
+    self.module = module
     self.ip = ip or ir.InsertionPoint(self.module.body)
     self.symbol_table = symbol_table or ir.SymbolTable(self.module.operation)
     self.backend = backend
